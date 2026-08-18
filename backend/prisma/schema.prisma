@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  PROVIDER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PaymentMethod {
+  TELEBIRR
+  CBE_BIRR
+  CHAPA
+  CASH
+}
+
+enum SubCity {
+  BOLE
+  YEKA
+  ARADA
+  KIRKOS
+  LIDETA
+  NIFAS_SILK_LAFTO
+  KOLFE_KERANIO
+  GULLELE
+  AKAKY_KALITI
+  ADDIS_KETEMA
+  LEMI_KURA
+}
+
+model User {
+  id           String   @id @default(uuid())
+  phoneNumber  String   @unique @map("phone_number") // e.g., +251912345678
+  fullName     String   @map("full_name")
+  email        String?  @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(CUSTOMER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  listings Listing[]
+  bookings Booking[] @relation("CustomerBookings")
+  reviews  Review[] // 👈 Add this line
+
+  @@map("users")
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  nameEn   String    @unique @map("name_en") // e.g. "Coffee Roaster"
+  nameAm   String    @map("name_am") // e.g. "የቡና ቆላፊ"
+  icon     String // Material icon or Lucide icon name
+  listings Listing[]
+
+  @@map("categories")
+}
+
+model Listing {
+  id           String   @id @default(uuid())
+  title        String
+  titleAm      String?  @map("title_am")
+  description  String
+  priceBirr    Decimal  @map("price_birr") @db.Decimal(10, 2)
+  subCity      SubCity  @map("sub_city")
+  specificArea String   @map("specific_area") // e.g., "Bole Atlas, near Edna Mall"
+  images       String[] @default([])
+  isVerified   Boolean  @default(false) @map("is_verified")
+
+  providerId String @map("provider_id")
+  provider   User   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  categoryId String   @map("category_id")
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  bookings  Booking[]
+  reviews   Review[] // 👈 Add this line
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([subCity])
+  @@index([categoryId])
+  @@map("listings")
+}
+
+model Booking {
+  id          String        @id @default(uuid())
+  bookingDate DateTime      @map("booking_date")
+  status      BookingStatus @default(PENDING)
+  totalAmount Decimal       @map("total_amount") @db.Decimal(10, 2)
+  notes       String?
+
+  customerId String @map("customer_id")
+  customer   User   @relation("CustomerBookings", fields: [customerId], references: [id])
+
+  listingId String  @map("listing_id")
+  listing   Listing @relation(fields: [listingId], references: [id])
+  review    Review?
+  payment   Payment?
+ chatMessages ChatMessage[]
+  createdAt DateTime @default(now()) @map("created_at")
+
+
+  @@map("bookings")
+}
+
+model Payment {
+  id        String  @id @default(uuid())
+  bookingId String  @unique @map("booking_id")
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  amountBirr Decimal       @map("amount_birr") @db.Decimal(10, 2)
+  currency   String        @default("ETB")
+  status     PaymentStatus @default(PENDING)
+  method     PaymentMethod @default(CHAPA)
+
+  txRef    String  @unique @map("tx_ref") // Local transaction reference
+  chapaRef String? @map("chapa_ref")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("payments")
+}
+
+// Add this inside backend/prisma/schema.prisma
+
+model Review {
+  id        String   @id @default(uuid())
+  rating    Int // 1 to 5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  bookingId String  @unique
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  customerId String
+  customer   User   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  listingId String
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([customerId])
+}model ChatMessage {
+  id         String   @id @default(uuid())
+  bookingId  String
+  senderId   String
+  senderName String
+  text       String
+  createdAt  DateTime @default(now())
+
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
